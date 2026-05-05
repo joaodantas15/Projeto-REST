@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LibLink | Dashboard Profissional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-[#0f172a] text-slate-100 font-sans min-h-screen p-6 md:p-12">
+    <div class="max-w-5xl mx-auto">
+        
+        <header class="flex justify-between items-center mb-10 border-b border-slate-800 pb-8">
+            <div>
+                <h1 class="text-4xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">LibLink v1.0</h1>
+                <p class="text-slate-400 text-sm mt-1 uppercase tracking-widest font-semibold text-[10px]">Sistemas Distribuídos & HATEOAS</p>
+            </div>
+            <button onclick="fetchData()" class="bg-slate-800 hover:bg-blue-600 px-6 py-2 rounded-xl transition-all text-xs font-bold border border-slate-700">
+                <i class="fas fa-sync-alt mr-2"></i>Sincronizar APIs
+            </button>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div class="bg-[#1e293b] p-6 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl cursor-pointer hover:border-blue-500/50 transition-all" onclick="showTab('books')">
+                <div>
+                    <p class="text-slate-400 text-xs uppercase font-bold tracking-tighter mb-1">Livros no Acervo</p>
+                    <p id="total-books" class="text-3xl font-black text-blue-400">--</p>
+                </div>
+                <div class="p-4 bg-blue-500/10 rounded-xl text-blue-500"><i class="fas fa-book text-2xl"></i></div>
+            </div>
+            <div class="bg-[#1e293b] p-6 rounded-2xl border border-slate-800 flex items-center justify-between shadow-xl cursor-pointer hover:border-emerald-500/50 transition-all" onclick="showTab('members')">
+                <div>
+                    <p class="text-slate-400 text-xs uppercase font-bold tracking-tighter mb-1">Membros Ativos</p>
+                    <p id="total-members" class="text-3xl font-black text-emerald-400">--</p>
+                </div>
+                <div class="p-4 bg-emerald-500/10 rounded-xl text-emerald-500"><i class="fas fa-users text-2xl"></i></div>
+            </div>
+        </div>
+
+        <!-- Conteúdo Dinâmico -->
+        <section class="bg-[#1e293b]/50 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden backdrop-blur-sm">
+            <div id="tab-title" class="p-6 border-b border-slate-800 bg-[#1e293b]/80 font-bold text-lg text-slate-100">
+                <!-- Título dinâmico -->
+            </div>
+
+            <div class="p-6">
+                <div id="dynamic-content" class="space-y-4">
+                    <!-- Conteúdo de Livros ou Membros aqui -->
+                </div>
+            </div>
+        </section>
+        <footer class="mt-12 text-center text-slate-500 text-[10px] uppercase tracking-widest flex flex-wrap justify-center gap-8 opacity-50">
+            <div class="flex items-center gap-2 font-bold"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> Gateway :8000</div>
+            <div class="flex items-center gap-2 font-bold"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Books API :8001</div>
+            <div class="flex items-center gap-2 font-bold"><span class="w-2 h-2 bg-purple-500 rounded-full"></span> Members API :8002</div>
+        </footer>
+
+    </div>
+
+    <script>
+        let currentTab = 'books';
+
+        async function fetchData() {
+            try {
+                const resDash = await fetch('/gateway/dashboard');
+                const dash = await resDash.json();
+                document.getElementById('total-books').innerText = dash.estatisticas.total_livros;
+                document.getElementById('total-members').innerText = dash.estatisticas.total_membros;
+                showTab(currentTab);
+            } catch (err) { console.error("Erro:", err); }
+        }
+
+        async function showTab(tab) {
+            currentTab = tab;
+            const content = document.getElementById('dynamic-content');
+            const title = document.getElementById('tab-title');
+            
+            if (tab === 'books') {
+                title.innerHTML = '<i class="fas fa-list-ul text-blue-500 mr-2"></i> Catálogo de Livros';
+                const res = await fetch('/gateway/livros');
+                const data = await res.json();
+                renderBooks(data.livros);
+            } else {
+                title.innerHTML = '<i class="fas fa-user-friends text-emerald-500 mr-2"></i> Membros do Sistema';
+                const res = await fetch('/gateway/membros');
+                const data = await res.json();
+                renderMembers(data);
+            }
+        }
+
+        function renderBooks(livros) {
+            const grid = document.getElementById('dynamic-content');
+            grid.innerHTML = livros.map(book => {
+                const action = book.links.find(l => l.rel === 'alugar' || l.rel === 'devolver');
+                const isAvailable = book.status === 'disponivel';
+                return `
+                    <div class="flex justify-between items-center p-5 bg-[#0f172a]/50 rounded-2xl border border-slate-800">
+                        <div>
+                            <p class="font-bold text-slate-100">${book.titulo}</p>
+                            <span class="text-[10px] font-bold ${isAvailable ? 'text-emerald-400' : 'text-rose-400'} uppercase tracking-tighter">${book.status}</span>
+                        </div>
+                        <button onclick="executeAction('${action.href}', '${action.method}')" 
+                                class="px-6 py-2 rounded-lg text-[10px] font-black tracking-widest ${isAvailable ? 'bg-blue-600 hover:bg-blue-500' : 'bg-rose-600 hover:bg-rose-500'}">
+                            ${action.rel.toUpperCase()}
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderMembers(membros) {
+            const grid = document.getElementById('dynamic-content');
+            grid.innerHTML = membros.map(m => `
+                <div class="flex justify-between items-center p-5 bg-[#0f172a]/50 rounded-2xl border border-slate-800">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-bold">${m.nome[0]}</div>
+                        <div>
+                            <p class="font-bold text-slate-100">${m.nome}</p>
+                            <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">${m.tipo}</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">ATIVO</span>
+                </div>
+            `).join('');
+        }
+
+        async function executeAction(href, method) {
+            await fetch(href, { method: method });
+            fetchData();
+        }
+
+        fetchData();
+    </script>
+</body>
+</html>
